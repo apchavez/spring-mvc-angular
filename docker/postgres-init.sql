@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS product (
+    id          SERIAL PRIMARY KEY,
+    sku         VARCHAR(64)   NOT NULL UNIQUE,
+    name        VARCHAR(200)  NOT NULL,
+    description VARCHAR(1000),
+    category    VARCHAR(100),
+    price       NUMERIC(12,2) NOT NULL CHECK (price >= 0),
+    stock       INTEGER       NOT NULL CHECK (stock >= 0),
+    active      BOOLEAN       NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_active ON product(active);

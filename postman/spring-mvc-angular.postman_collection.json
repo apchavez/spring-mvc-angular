@@ -1,0 +1,893 @@
+{
+	"info": {
+		"name": "Product Service API — Spring MVC",
+		"_postman_id": "3e66f4b2-9d57-4fd8-a6e3-c1dc3f2e6a10",
+		"description": "Colección para probar la API REST de Product Service (Spring Boot MVC, bloqueante). Base path: /api/v1/products\n\nUsar junto con uno de los environments incluidos en postman/:\n- spring-mvc-angular.local.postman_environment.json  → local (H2)\n- spring-mvc-angular.k8s.postman_environment.json    → Kubernetes (PostgreSQL)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{adminToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "productId",
+			"value": "",
+			"type": "string",
+			"description": "Se establece automáticamente al crear un producto (POST)"
+		},
+		{
+			"key": "adminToken",
+			"value": "",
+			"type": "string",
+			"description": "JWT RS256 con ROLE_ADMIN. Generar con JwtService.generateToken(\"test\", \"ADMIN\") y pegar aquí o en el environment."
+		}
+	],
+	"item": [
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "POST Crear producto — 201 Created",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 201 Created', () => pm.response.to.have.status(201));",
+									"pm.test('Response tiene id generado', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.id).to.be.a('number');",
+									"    pm.collectionVariables.set('productId', body.id);",
+									"});",
+									"pm.test('Campos de respuesta son correctos', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.sku).to.eql('SKU-100');",
+									"    pm.expect(body.name).to.eql('Wireless Mouse');",
+									"    pm.expect(body.price).to.eql(29.99);",
+									"    pm.expect(body.active).to.eql(true);",
+									"});",
+									"pm.test('Content-Type es application/json', () => {",
+									"    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"SKU-100\",\n  \"name\": \"Wireless Mouse\",\n  \"description\": \"Mouse inalámbrico ergonómico\",\n  \"category\": \"Electronics\",\n  \"price\": 29.99,\n  \"stock\": 150,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Crea un nuevo producto con ID autogenerado. Guarda el ID en la variable `productId` para los siguientes requests."
+					},
+					"response": []
+				},
+				{
+					"name": "POST Crear producto — 409 SKU Duplicado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 409 Conflict', () => pm.response.to.have.status(409));",
+									"pm.test('Body contiene status 409', () => {",
+									"    pm.expect(pm.response.json().status).to.eql(409);",
+									"});",
+									"pm.test('Body contiene mensaje de error', () => {",
+									"    pm.expect(pm.response.json().mensaje).to.be.a('string').and.not.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"SKU-100\",\n  \"name\": \"Duplicado\",\n  \"description\": \"Conflicto de SKU\",\n  \"category\": \"Electronics\",\n  \"price\": 19.99,\n  \"stock\": 10,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Intenta crear un producto con un SKU ya existente. Requiere haber ejecutado 'POST Crear producto' antes."
+					},
+					"response": []
+				},
+				{
+					"name": "POST Crear producto — 400 Validación de campos",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Body contiene array de errores', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.errores).to.be.an('array').and.not.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"\",\n  \"name\": \"\",\n  \"description\": \"\",\n  \"category\": \"\",\n  \"price\": -1,\n  \"stock\": -1,\n  \"active\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Envía datos inválidos para verificar la validación de Bean Validation."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Listar productos activos — 200 OK (paginado)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test('Response tiene estructura de página', () => {",
+									"    pm.expect(body).to.have.property('content').that.is.an('array');",
+									"    pm.expect(body).to.have.property('page').that.is.a('number');",
+									"    pm.expect(body).to.have.property('size').that.is.a('number');",
+									"    pm.expect(body).to.have.property('totalElements').that.is.a('number');",
+									"    pm.expect(body).to.have.property('totalPages').that.is.a('number');",
+									"    pm.expect(body).to.have.property('last').that.is.a('boolean');",
+									"});",
+									"pm.test('Todos los productos en content están activos', () => {",
+									"    body.content.forEach(p => pm.expect(p.active).to.eql(true));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/active?page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"active"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Página (0-based)"
+								},
+								{
+									"key": "size",
+									"value": "20",
+									"description": "Elementos por página (max 100)"
+								}
+							]
+						},
+						"description": "Retorna página de productos activos. Campos: content, page, size, totalElements, totalPages, last."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Listar productos inactivos — 200 OK (paginado)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test('Response tiene estructura de página', () => {",
+									"    pm.expect(body).to.have.property('content').that.is.an('array');",
+									"    pm.expect(body).to.have.property('page').that.is.a('number');",
+									"    pm.expect(body).to.have.property('size').that.is.a('number');",
+									"    pm.expect(body).to.have.property('totalElements').that.is.a('number');",
+									"    pm.expect(body).to.have.property('totalPages').that.is.a('number');",
+									"    pm.expect(body).to.have.property('last').that.is.a('boolean');",
+									"});",
+									"pm.test('Todos los productos en content están inactivos', () => {",
+									"    body.content.forEach(p => pm.expect(p.active).to.eql(false));",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/inactive?page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"inactive"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Página (0-based)"
+								},
+								{
+									"key": "size",
+									"value": "20",
+									"description": "Elementos por página (max 100)"
+								}
+							]
+						},
+						"description": "Retorna página de productos inactivos (desactivados). Campos: content, page, size, totalElements, totalPages, last."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar productos por prefijo de nombre — 200 OK (paginado)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"const body = pm.response.json();",
+									"pm.test('Response tiene estructura de página', () => {",
+									"    pm.expect(body).to.have.property('content').that.is.an('array');",
+									"    pm.expect(body).to.have.property('totalElements').that.is.a('number');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/search?prefix=Wireless&page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"search"
+							],
+							"query": [
+								{
+									"key": "prefix",
+									"value": "Wireless",
+									"description": "Prefijo de nombre (insensible a mayúsculas)"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						},
+						"description": "Búsqueda de productos por prefijo de nombre, insensible a mayúsculas."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar producto por SKU — 200 OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('SKU de respuesta coincide', () => {",
+									"    pm.expect(pm.response.json().sku).to.eql('SKU-100');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/sku/SKU-100",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"sku",
+								"SKU-100"
+							]
+						},
+						"description": "Busca el producto creado por 'POST Crear producto' (SKU-100). Requiere ejecutar ese request antes."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar producto por SKU — 404 Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/sku/SKU-NOPE",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"sku",
+								"SKU-NOPE"
+							]
+						},
+						"description": "Intenta buscar un producto con un SKU inexistente. Retorna 404 Not Found."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar producto por ID — 200 OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('ID de respuesta coincide con el buscado', () => {",
+									"    const id = parseInt(pm.collectionVariables.get('productId'));",
+									"    pm.expect(pm.response.json().id).to.eql(id);",
+									"});",
+									"pm.test('Response tiene todos los campos esperados', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.have.all.keys('id', 'sku', 'name', 'description', 'category', 'price', 'stock', 'active');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{productId}}"
+							]
+						},
+						"description": "Busca el producto cuyo ID fue guardado por 'POST Crear producto'. Requiere ejecutar ese request antes."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar producto por ID — 404 Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+									"pm.test('Body contiene status 404', () => {",
+									"    pm.expect(pm.response.json().status).to.eql(404);",
+									"});",
+									"pm.test('Body contiene mensaje de error', () => {",
+									"    pm.expect(pm.response.json().mensaje).to.be.a('string').and.not.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/99999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"99999"
+							]
+						},
+						"description": "Intenta buscar un producto inexistente. Retorna 404 Not Found."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Buscar producto por ID — 400 ID Inválido",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Body contiene status 400', () => {",
+									"    pm.expect(pm.response.json().status).to.eql(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/0",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"0"
+							]
+						},
+						"description": "ID 0 viola la restricción @Positive — debe retornar 400 Bad Request."
+					},
+					"response": []
+				},
+				{
+					"name": "PUT Actualizar producto — 200 OK",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('ID en respuesta coincide', () => {",
+									"    const id = parseInt(pm.collectionVariables.get('productId'));",
+									"    pm.expect(pm.response.json().id).to.eql(id);",
+									"});",
+									"pm.test('Nombre actualizado correctamente', () => {",
+									"    pm.expect(pm.response.json().name).to.eql('Wireless Mouse Pro');",
+									"});",
+									"pm.test('Estado activo actualizado correctamente', () => {",
+									"    pm.expect(pm.response.json().active).to.eql(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"SKU-100\",\n  \"name\": \"Wireless Mouse Pro\",\n  \"description\": \"Versión mejorada\",\n  \"category\": \"Electronics\",\n  \"price\": 34.99,\n  \"stock\": 120,\n  \"active\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{productId}}"
+							]
+						},
+						"description": "Reemplaza todos los campos del producto. Requiere ejecutar 'POST Crear producto' antes."
+					},
+					"response": []
+				},
+				{
+					"name": "PUT Actualizar producto — 400 Validación de campos",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('Body contiene array de errores', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.status).to.eql(400);",
+									"    pm.expect(body.errores).to.be.an('array').and.not.empty;",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"\",\n  \"name\": \"\",\n  \"description\": \"\",\n  \"category\": \"\",\n  \"price\": -1,\n  \"stock\": -1,\n  \"active\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{productId}}"
+							]
+						},
+						"description": "Envía campos inválidos en el update — Bean Validation retorna 400."
+					},
+					"response": []
+				},
+				{
+					"name": "PUT Actualizar producto — 404 Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+									"pm.test('Body contiene status 404', () => {",
+									"    pm.expect(pm.response.json().status).to.eql(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sku\": \"SKU-NOPE\",\n  \"name\": \"No Existe\",\n  \"description\": \"desc\",\n  \"category\": \"Electronics\",\n  \"price\": 10.0,\n  \"stock\": 5,\n  \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/99999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"99999"
+							]
+						},
+						"description": "Intenta actualizar un producto inexistente. Retorna 404 Not Found."
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Eliminar producto — 204 No Content",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 204 No Content', () => pm.response.to.have.status(204));",
+									"pm.test('Body vacío', () => {",
+									"    pm.expect(pm.response.text()).to.eql('');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{productId}}"
+							]
+						},
+						"description": "Elimina el producto creado por 'POST Crear producto'. Requiere ejecutar ese request antes."
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Eliminar producto — 404 Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 404 Not Found', () => pm.response.to.have.status(404));",
+									"pm.test('Body contiene status 404', () => {",
+									"    pm.expect(pm.response.json().status).to.eql(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/products/99999",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"99999"
+							]
+						},
+						"description": "Intenta eliminar un producto inexistente. Retorna 404 Not Found."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Actuator",
+			"item": [
+				{
+					"name": "GET Health — 200 UP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('Health status es UP', () => {",
+									"    pm.expect(pm.response.json().status).to.eql('UP');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health"
+							]
+						},
+						"description": "Verifica el estado general de la aplicación (liveness/readiness probes en k8s)."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Liveness Probe — 200 UP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('Liveness status es UP', () => {",
+									"    pm.expect(pm.response.json().status).to.eql('UP');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health/liveness",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health",
+								"liveness"
+							]
+						},
+						"description": "Kubernetes liveness probe. Si devuelve DOWN, k8s reinicia el pod."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Readiness Probe — 200 UP",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('Readiness status es UP', () => {",
+									"    pm.expect(pm.response.json().status).to.eql('UP');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health/readiness",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health",
+								"readiness"
+							]
+						},
+						"description": "Kubernetes readiness probe. Si devuelve DOWN, k8s deja de enrutar tráfico al pod."
+					},
+					"response": []
+				},
+				{
+					"name": "GET Prometheus Metrics",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('Content-Type es text/plain', () => {",
+									"    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+									"});",
+									"pm.test('Response contiene métricas JVM', () => {",
+									"    pm.expect(pm.response.text()).to.include('jvm_memory_used_bytes');",
+									"});",
+									"pm.test('Response contiene métricas HTTP', () => {",
+									"    pm.expect(pm.response.text()).to.include('http_server_requests_seconds');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/prometheus",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"prometheus"
+							]
+						},
+						"description": "Expone métricas en formato Prometheus (text/plain). Incluye métricas JVM, HTTP request rate/latency y métricas de Spring WebFlux. Scrapeado automáticamente por Prometheus en K8s vía anotaciones en el pod."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

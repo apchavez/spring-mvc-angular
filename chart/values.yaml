@@ -1,0 +1,50 @@
+nameOverride: ""
+
+api:
+  image:
+    # Must manually match GHCR's auto-derived name from .github/workflows/docker-publish*.yml
+    # (ghcr.io/apchavez/<repo-name>-api) — not templated from this chart's own name.
+    repository: ghcr.io/apchavez/spring-mvc-angular-api
+    tag: ""
+    pullPolicy: Always
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+config:
+  springProfile: prod
+  db:
+    host: postgres-service
+    port: "5432"
+    name: productdb
+  redis:
+    host: redis-service
+    port: "6379"
+  kafka:
+    bootstrapServers: kafka:9092
+  otel:
+    endpoint: http://otel-collector:4318/v1/traces
+
+secrets:
+  dbUser: ""
+  dbPassword: ""
+  kafkaUser: product-service
+  kafkaPassword: ""
+  redisPassword: ""
+
+ingress:
+  host: product-service.local
+
+hpa:
+  minReplicas: 2
+  maxReplicas: 10
+  cpuUtilization: 70
+  memoryUtilization: 80
+
+monitoring:
+  enabled: true
