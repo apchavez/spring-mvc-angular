@@ -1,0 +1,342 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  test-api:
+    name: API — Tests y cobertura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          scanners: vuln
+          exit-code: 1
+          ignore-unfixed: true
+          format: table
+
+      - name: Configurar Java 21 (temurin)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Dar permisos a gradlew
+        run: chmod +x api/gradlew
+        working-directory: .
+
+      - name: Compilar proyecto
+        run: ./gradlew build -x test --no-daemon
+        working-directory: api
+
+      - name: Ejecutar pruebas
+        run: ./gradlew test --no-daemon
+        working-directory: api
+        env:
+          SPRING_PROFILES_ACTIVE: dev
+
+      - name: Generar reporte JaCoCo
+        if: always()
+        run: ./gradlew jacocoTestReport --no-daemon
+        working-directory: api
+
+      - name: Verificar cobertura mínima (80 %)
+        run: ./gradlew jacocoTestCoverageVerification --no-daemon
+        working-directory: api
+
+      - name: Publicar reporte JaCoCo
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-report
+          path: api/build/reports/jacoco/test/html/
+          retention-days: 30
+
+      - name: SonarCloud analysis (push)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.SONAR_ORGANIZATION != ''
+        run: ./gradlew sonar --no-daemon -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }} -Dsonar.projectKey=apchavez_spring-mvc-angular -Dsonar.projectName=spring-mvc-angular -Dsonar.scanner.skipJreProvisioning=true
+        working-directory: api
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: SonarCloud analysis (pull_request)
+        if: github.event_name == 'pull_request' && vars.SONAR_ORGANIZATION != '' && github.actor != 'dependabot[bot]'
+        run: >
+          ./gradlew sonar --no-daemon
+          -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+          -Dsonar.projectKey=apchavez_spring-mvc-angular
+          -Dsonar.projectName=spring-mvc-angular
+          -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+          -Dsonar.pullrequest.branch=${{ github.head_ref }}
+          -Dsonar.pullrequest.base=${{ github.base_ref }}
+          -Dsonar.scanner.skipJreProvisioning=true
+        working-directory: api
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+
+  test-web:
+    name: Web — Tests Angular
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+        working-directory: web
+
+      - name: Ejecutar pruebas con cobertura
+        run: npm run test:coverage
+        working-directory: web
+
+      - name: Publicar reporte de cobertura Angular
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: angular-coverage-report
+          path: web/coverage/
+          retention-days: 30
+
+      - name: Build de producción
+        run: npm run build
+        working-directory: web
+
+  e2e-web:
+    name: Web — E2E Playwright
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+        working-directory: web
+
+      - name: Instalar navegadores Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: web
+
+      - name: Ejecutar pruebas E2E
+        run: npm run test:e2e
+        working-directory: web
+
+      - name: Publicar reporte Playwright
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 30
+
+  k8s-validate:
+    name: Validar manifests k8s
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar Helm
+        uses: azure/setup-helm@v5
+
+      - name: Instalar kubeconform
+        run: |
+          curl -sLo /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/
+
+      - name: Validar chart de Helm (lo que realmente se despliega)
+        run: |
+          helm lint ./chart
+          helm template product-service ./chart --namespace product-service \
+            | kubeconform -strict -ignore-missing-schemas -summary -
+
+  terraform-validate:
+    name: Terraform — fmt y validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        working-directory: terraform
+        run: terraform fmt -check -diff
+
+      - name: Terraform init (sin backend, no requiere credenciales de nube)
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
+
+  docker-api:
+    name: Docker — API
+    runs-on: ubuntu-latest
+    needs: test-api
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login en GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraer metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-api
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Construir y publicar imagen API
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ./api
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Instalar Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Firmar imagen API con Cosign (keyless)
+        run: |
+          cosign sign --yes \
+            "${{ env.REGISTRY }}/${{ github.repository }}-api@${{ steps.build.outputs.digest }}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}-api
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generar SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository }}-api@${{ steps.build.outputs.digest }}
+          artifact-name: sbom-api-${{ github.sha }}.spdx.json
+          output-file: sbom-api.spdx.json
+          format: spdx-json
+
+  docker-web:
+    name: Docker — Web
+    runs-on: ubuntu-latest
+    needs: test-web
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configurar QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login en GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extraer metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-web
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Construir y publicar imagen Web
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ./web
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Instalar Cosign
+        uses: sigstore/cosign-installer@v4.1.2
+
+      - name: Firmar imagen Web con Cosign (keyless)
+        run: |
+          cosign sign --yes \
+            "${{ env.REGISTRY }}/${{ github.repository }}-web@${{ steps.build.outputs.digest }}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}-web
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generar SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ github.repository }}-web@${{ steps.build.outputs.digest }}
+          artifact-name: sbom-web-${{ github.sha }}.spdx.json
+          output-file: sbom-web.spdx.json
+          format: spdx-json
