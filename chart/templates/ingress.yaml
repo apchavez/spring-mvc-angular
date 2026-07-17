@@ -5,18 +5,44 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "product-service.labels" . | nindent 4 }}
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /
+          - path: /api/v1
             pathType: Prefix
             backend:
               service:
                 name: product-service
                 port:
                   name: http
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  name: http
+          - path: /swagger-ui
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  name: http
+          - path: /v3/api-docs
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: product-web
+                port:
+                  number: 80

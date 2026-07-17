@@ -33,6 +33,7 @@ jobs:
             --namespace product-service-mvc \
             --create-namespace \
             --set api.image.tag=latest \
+            --set web.image.tag=latest \
             --set secrets.dbUser=${{ secrets.DB_USER }} \
             --set secrets.dbPassword=${{ secrets.DB_PASSWORD }} \
             --set secrets.kafkaUser=${{ secrets.KAFKA_USER }} \

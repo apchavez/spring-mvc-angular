@@ -2,7 +2,7 @@ nameOverride: ""
 
 api:
   image:
-    # Must manually match GHCR's auto-derived name from .github/workflows/docker-publish*.yml
+    # Must manually match GHCR's auto-derived name from .github/workflows/ci.yml (docker-api job)
     # (ghcr.io/apchavez/<repo-name>-api) — not templated from this chart's own name.
     repository: ghcr.io/apchavez/spring-mvc-angular-api
     tag: ""
@@ -15,6 +15,20 @@ api:
     limits:
       cpu: 500m
       memory: 512Mi
+
+web:
+  image:
+    repository: ghcr.io/apchavez/spring-mvc-angular-web
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
 config:
   springProfile: prod
