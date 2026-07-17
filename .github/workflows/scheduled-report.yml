@@ -9,7 +9,7 @@ jobs:
   generate-and-deliver:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Start the stack
         run: docker compose up -d --build db redis kafka api
