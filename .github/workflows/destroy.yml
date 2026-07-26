@@ -1,0 +1,32 @@
+name: Destroy K8s Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: 'Kubernetes namespace to destroy'
+        required: true
+        default: 'product-service-mvc'
+      confirm:
+        description: 'Type "destroy" to confirm deletion'
+        required: true
+
+jobs:
+  destroy:
+    name: Delete namespace and all resources
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'destroy' }}
+    steps:
+      - name: Instalar kubectl
+        uses: azure/setup-kubectl@v5
+
+      - name: Configurar kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Eliminar namespace
+        run: |
+          kubectl delete namespace ${{ github.event.inputs.namespace }} --ignore-not-found=true
+          echo "Namespace '${{ github.event.inputs.namespace }}' eliminado (o no existía)."

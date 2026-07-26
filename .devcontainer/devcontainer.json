@@ -1,0 +1,19 @@
+{
+  "name": "Spring Boot + Angular",
+  "image": "mcr.microsoft.com/devcontainers/java:1-21",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "cd api && ./gradlew -q dependencies && cd ../web && npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.java",
+        "angular.ng-template",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

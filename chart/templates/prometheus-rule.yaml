@@ -1,0 +1,48 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: product-service-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: product-service.rules
+      interval: 30s
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            rate(http_server_requests_seconds_count{application="product-service",status=~"5.."}[5m])
+            /
+            rate(http_server_requests_seconds_count{application="product-service"}[5m])
+            > 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High HTTP 5xx error rate"
+            description: "More than 5% of requests are returning 5xx errors for the last 2 minutes."
+
+        - alert: HighP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              rate(http_server_requests_seconds_bucket{application="product-service"}[5m])
+            ) > 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P99 latency above 1 second"
+            description: "The 99th percentile latency has exceeded 1s for the last 2 minutes."
+
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="{{ .Release.Namespace }}", condition="true"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "product-service pod not ready"
+            description: "A pod in namespace {{ .Release.Namespace }} has been not ready for more than 2 minutes."
+{{- end }}
