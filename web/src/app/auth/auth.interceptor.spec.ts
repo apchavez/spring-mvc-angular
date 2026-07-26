@@ -58,7 +58,7 @@ describe('authInterceptor', () => {
   it('should log out and redirect to /login on a 401 from a protected endpoint', () => {
     authServiceMock.token.mockReturnValue('expired-jwt');
 
-    http.get('/api/v1/products/active').subscribe({ error: () => {} });
+    http.get('/api/v1/products/active').subscribe({ error: () => undefined });
 
     const req = httpMock.expectOne('/api/v1/products/active');
     req.flush({}, { status: 401, statusText: 'Unauthorized' });
@@ -68,7 +68,7 @@ describe('authInterceptor', () => {
   });
 
   it('should NOT redirect on a 401 from the login endpoint itself', () => {
-    http.post('/api/v1/auth/login', {}).subscribe({ error: () => {} });
+    http.post('/api/v1/auth/login', {}).subscribe({ error: () => undefined });
 
     const req = httpMock.expectOne('/api/v1/auth/login');
     req.flush({}, { status: 401, statusText: 'Unauthorized' });
