@@ -1,0 +1,115 @@
+name: Scheduled Product Report
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # weekly, Monday 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  generate-and-deliver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Start the stack
+        run: docker compose up -d --build db redis kafka api
+
+      - name: Wait for the API to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+              echo "API is up."
+              exit 0
+            fi
+            echo "Waiting for API... ($i/30)"
+            sleep 5
+          done
+          echo "API never became healthy." >&2
+          docker compose logs api
+          exit 1
+
+      - name: Log in as demo admin
+        id: login
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:8080/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin123"}' | jq -r '.token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Login failed." >&2
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Seed sample products via CSV import
+        env:
+          TOKEN: ${{ steps.login.outputs.token }}
+        run: |
+          cat > /tmp/sample-products.csv <<'EOF'
+          sku,name,description,category,price,stock,active
+          RPT-001,Teclado mecánico,Teclado mecánico retroiluminado,Periféricos,49.90,120,true
+          RPT-002,Monitor 27",Monitor 27 pulgadas 144Hz,Periféricos,289.00,35,true
+          RPT-003,Mouse inalámbrico,Mouse ergonómico inalámbrico,Periféricos,19.90,200,true
+          RPT-004,Silla ergonómica,Silla de oficina ajustable,Mobiliario,349.00,15,true
+          RPT-005,Escritorio ajustable,Escritorio de altura ajustable,Mobiliario,459.00,8,true
+          RPT-006,Webcam HD,Webcam 1080p con micrófono,Periféricos,34.90,60,true
+          RPT-007,Audífonos,Audífonos con cancelación de ruido,Audio,79.90,45,false
+          EOF
+          # /import is now an async Spring Batch job (202 + jobExecutionId) — launch it, then
+          # poll GET /import/{jobExecutionId} until Spring Batch reports COMPLETED or FAILED.
+          JOB_ID=$(curl -sf -X POST http://localhost:8080/api/v1/products/import \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "file=@/tmp/sample-products.csv" | jq -r '.jobExecutionId')
+
+          for i in $(seq 1 30); do
+            RESULT=$(curl -sf http://localhost:8080/api/v1/products/import/$JOB_ID \
+              -H "Authorization: Bearer $TOKEN")
+            STATUS=$(echo "$RESULT" | jq -r '.status')
+            if [ "$STATUS" = "COMPLETED" ] || [ "$STATUS" = "FAILED" ]; then
+              echo "$RESULT" | jq .
+              echo "Imported: $(echo "$RESULT" | jq -r '.imported'), Failed: $(echo "$RESULT" | jq -r '.failed')"
+              [ "$STATUS" = "FAILED" ] && { echo "Import job failed." >&2; exit 1; }
+              exit 0
+            fi
+            echo "Import job status: $STATUS ($i/30)"
+            sleep 2
+          done
+          echo "Import job never completed." >&2
+          exit 1
+
+      - name: Fetch PDF and Excel reports
+        env:
+          TOKEN: ${{ steps.login.outputs.token }}
+        run: |
+          curl -sf http://localhost:8080/api/v1/products/report/pdf \
+            -H "Authorization: Bearer $TOKEN" -o products-report.pdf
+          curl -sf http://localhost:8080/api/v1/products/report/excel \
+            -H "Authorization: Bearer $TOKEN" -o products-report.xlsx
+          ls -la products-report.pdf products-report.xlsx
+
+      - name: Upload reports as workflow artifacts
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: product-reports-${{ github.run_number }}
+          path: |
+            products-report.pdf
+            products-report.xlsx
+          retention-days: 30
+
+      - name: Email reports (optional, opt-in)
+        if: ${{ vars.REPORT_EMAIL != '' && vars.SMTP_SERVER != '' }}
+        uses: dawidd6/action-send-mail@v18
+        with:
+          server_address: ${{ vars.SMTP_SERVER }}
+          server_port: ${{ vars.SMTP_PORT || 587 }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Reporte semanal de productos — spring-mvc-angular"
+          to: ${{ vars.REPORT_EMAIL }}
+          from: Reportes Automáticos
+          body: "Reporte semanal generado automáticamente por scheduled-report.yml a partir de datos de demostración. Adjuntos: PDF y Excel."
+          attachments: products-report.pdf,products-report.xlsx
+
+      - name: Tear down the stack
+        if: always()
+        run: docker compose down -v

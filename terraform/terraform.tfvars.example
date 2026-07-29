@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and adjust as needed.
+# terraform.tfvars is gitignored — never commit real values here.
+
+aws_region   = "us-east-1"
+cluster_name = "product-service-mvc"
+
+# Cost knobs — see terraform/README.md for an estimate before applying.
+node_instance_types = ["t3.medium"]
+node_min_size       = 1
+node_max_size       = 3
+node_desired_size   = 2
