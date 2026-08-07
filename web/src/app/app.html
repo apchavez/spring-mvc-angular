@@ -1,0 +1,15 @@
+<mat-toolbar color="primary">
+  <mat-icon>people</mat-icon>
+  <span class="toolbar-title">{{ title }}</span>
+  <span class="spacer"></span>
+  @if (authService.isAuthenticated()) {
+    <span class="username">{{ authService.username() }}</span>
+    <button mat-icon-button (click)="logout()" aria-label="Cerrar sesión">
+      <mat-icon>logout</mat-icon>
+    </button>
+  }
+</mat-toolbar>
+
+<main class="content">
+  <router-outlet />
+</main>
