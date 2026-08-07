@@ -1,0 +1,62 @@
+{
+  "title": "Product Service",
+  "uid": "product-service",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(http_server_requests_seconds_count{application=\"product-service\"}[1m]))",
+        "legendFormat": "req/s"
+      }]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(rate(http_server_requests_seconds_count{application=\"product-service\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"product-service\"}[1m])) * 100",
+        "legendFormat": "error %"
+      }],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
+    },
+    {
+      "id": 3,
+      "title": "P50 / P99 Latency",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{application=\"product-service\"}[1m])) by (le))",
+          "legendFormat": "p99"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, sum(rate(http_server_requests_seconds_bucket{application=\"product-service\"}[1m])) by (le))",
+          "legendFormat": "p50"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4,
+      "title": "JVM Memory Used",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [{
+        "datasource": "Prometheus",
+        "expr": "sum(jvm_memory_used_bytes{application=\"product-service\"}) by (area)",
+        "legendFormat": "{{area}}"
+      }],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    }
+  ]
+}
