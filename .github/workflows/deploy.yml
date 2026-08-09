@@ -1,0 +1,65 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to ephemeral kind cluster
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Set up kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: product-service-mvc
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install product-service ./chart \
+            --namespace product-service-mvc \
+            --create-namespace \
+            --set api.image.tag=latest \
+            --set web.image.tag=latest \
+            --set secrets.dbUser=ci-smoke-user \
+            --set secrets.dbPassword=ci-smoke-pass \
+            --set secrets.kafkaUser=ci-smoke-kafka \
+            --set secrets.kafkaPassword=ci-smoke-pass \
+            --set secrets.redisPassword=ci-smoke-pass \
+            --wait --timeout=180s
+
+      - name: Verify rollout
+        run: |
+          kubectl -n product-service-mvc rollout status deployment/product-service --timeout=120s
+          kubectl -n product-service-mvc rollout status deployment/product-service-web --timeout=120s
+
+      - name: Smoke test readiness endpoint
+        run: |
+          kubectl -n product-service-mvc port-forward svc/product-service 8080:80 &
+          PF_PID=$!
+          sleep 5
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/actuator/health/readiness)
+          kill $PF_PID
+          if [ "$STATUS" != "200" ]; then
+            echo "Readiness check failed with status $STATUS"
+            kubectl -n product-service-mvc get pods
+            kubectl -n product-service-mvc logs deployment/product-service --tail=100
+            exit 1
+          fi
+          echo "Readiness check passed ($STATUS)"
+
+      - name: Show cluster state
+        if: always()
+        run: kubectl -n product-service-mvc get all
+
+      - name: Tear down kind cluster
+        if: always()
+        run: kind delete cluster --name product-service-mvc

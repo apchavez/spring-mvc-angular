@@ -1,0 +1,21 @@
+.login-card {
+  max-width: 400px;
+  margin: 64px auto 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+
+  mat-form-field {
+    width: 100%;
+  }
+}
+
+.error-message {
+  color: var(--mat-sys-error, #b3261e);
+  margin: 0;
+  font-size: 0.875rem;
+}

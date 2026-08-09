@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: kafka
+          image: bitnamilegacy/kafka:3.9
+          ports:
+            - containerPort: 9092
+          volumeMounts:
+            - name: kafka-data
+              mountPath: /bitnami/kafka
+          env:
+            - name: KAFKA_CFG_NODE_ID
+              value: "0"
+            - name: KAFKA_CFG_PROCESS_ROLES
+              value: controller,broker
+            - name: KAFKA_CFG_LISTENERS
+              value: PLAINTEXT://:9092,CONTROLLER://:9093
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://kafka.{{ .Release.Namespace }}.svc.cluster.local:9092"
+            - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+              value: CONTROLLER:PLAINTEXT,PLAINTEXT:SASL_PLAINTEXT
+            - name: KAFKA_CFG_SASL_ENABLED_MECHANISMS
+              value: SCRAM-SHA-256
+            - name: KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL
+              value: PLAIN
+            - name: KAFKA_CLIENT_USERS
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: kafka-user
+            - name: KAFKA_CLIENT_PASSWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: kafka-password
+            - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
+              value: 0@kafka:9093
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: kafka-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kafka
+spec:
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092

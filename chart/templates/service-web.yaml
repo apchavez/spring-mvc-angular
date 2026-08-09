@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-web
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: product-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

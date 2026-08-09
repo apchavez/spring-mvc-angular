@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "product-service.labels" . | nindent 4 }}
+data:
+  SPRING_PROFILES_ACTIVE: {{ .Values.config.springProfile | quote }}
+  DB_HOST: {{ .Values.config.db.host | quote }}
+  DB_PORT: {{ .Values.config.db.port | quote }}
+  DB_NAME: {{ .Values.config.db.name | quote }}
+  REDIS_HOST: {{ .Values.config.redis.host | quote }}
+  REDIS_PORT: {{ .Values.config.redis.port | quote }}
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.config.kafka.bootstrapServers | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otel.endpoint | quote }}

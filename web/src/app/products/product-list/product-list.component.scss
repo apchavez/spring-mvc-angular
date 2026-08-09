@@ -1,0 +1,26 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.full-width {
+  width: 100%;
+}
+
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  padding: 48px;
+}
+
+.no-data {
+  text-align: center;
+  padding: 24px;
+  color: rgba(0, 0, 0, 0.54);
+}
