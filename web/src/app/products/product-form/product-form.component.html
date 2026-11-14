@@ -1,0 +1,77 @@
+<mat-card class="form-card">
+  <mat-card-header>
+    <mat-card-title>{{ isEdit ? 'Edit Product' : 'New Product' }}</mat-card-title>
+  </mat-card-header>
+
+  <mat-card-content>
+    @if (loading()) {
+      <div class="spinner-container">
+        <mat-spinner diameter="40" />
+      </div>
+    } @else {
+      <form [formGroup]="form" class="form">
+        <mat-form-field appearance="outline">
+          <mat-label>SKU</mat-label>
+          <input matInput formControlName="sku" />
+          @if (form.get('sku')?.invalid && form.get('sku')?.touched) {
+            <mat-error>SKU is required</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Name</mat-label>
+          <input matInput formControlName="name" />
+          @if (form.get('name')?.invalid && form.get('name')?.touched) {
+            <mat-error>Name is required</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Description</mat-label>
+          <input matInput formControlName="description" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <input matInput formControlName="category" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Price</mat-label>
+          <input matInput type="number" formControlName="price" />
+          @if (form.get('price')?.invalid && form.get('price')?.touched) {
+            <mat-error>Price must be 0 or greater</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Stock</mat-label>
+          <input matInput type="number" formControlName="stock" />
+          @if (form.get('stock')?.invalid && form.get('stock')?.touched) {
+            <mat-error>Stock must be 0 or greater</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-checkbox formControlName="active">Active</mat-checkbox>
+      </form>
+    }
+  </mat-card-content>
+
+  <mat-card-actions align="end">
+    <a mat-button routerLink="/products">
+      <mat-icon>arrow_back</mat-icon>
+      Cancel
+    </a>
+    <button
+      mat-raised-button
+      color="primary"
+      (click)="submit()"
+      [disabled]="form.invalid || submitting() || loading()">
+      @if (submitting()) {
+        <mat-spinner diameter="20" />
+      } @else {
+        {{ isEdit ? 'Update' : 'Create' }}
+      }
+    </button>
+  </mat-card-actions>
+</mat-card>
